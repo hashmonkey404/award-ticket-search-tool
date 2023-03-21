@@ -8,11 +8,11 @@ from ac_searcher import Searcher
 
 
 if __name__ == '__main__':
-    max_stops = 1
-    origins = ['CUN']
-    destinations = ['YVR', 'YYJ', 'YLW', 'YCD', 'YXS', 'YXE', 'YQR', 'YWG', 'YEG', 'YYC']
-    start_dt = datetime.strptime('2023-06-10', '%Y-%m-%d')
-    end_dt = datetime.strptime('2023-06-10', '%Y-%m-%d')
+    max_stops = 2
+    origins = ['YVR']
+    destinations = ['PVG']
+    start_dt = datetime.strptime('2023-06-09', '%Y-%m-%d')
+    end_dt = datetime.strptime('2023-06-09', '%Y-%m-%d')
     dates =  utils.date_range(start_dt, end_dt)
     #  means eco, pre, biz and first
     cabin_class = [
@@ -36,7 +36,7 @@ if __name__ == '__main__':
         # }
     }
     seg_sorter = {
-        'key': 'duration',    # Options 'duration', 'stops', 'departure_time' and 'arrival_time'
+        'key': 'stops',    # Options 'duration', 'stops', 'departure_time' and 'arrival_time'
                                     # only takes 'duration', 'stops', 'departure_time' and 'arrival_time'.
         'ascending': True
     }

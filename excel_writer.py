@@ -16,9 +16,9 @@ def results_to_excel(results, max_stops: int):
             series = df[col]
             series_cell_top = series.map(lambda x: x.split('\n')[0]) # get first line of every cell
             max_len = max(
-                series_cell_top.astype(str).map(len).max(),  # len of largest item
+                series_cell_top.astype(str).map(len).max(),  # len of largest item (single line)
                 len(str(series.name))  # len of column name/header  # len(col)
-            ) * 1.5 + 2
+            ) * 1.2 + 2
             width_dict[col] = max_len
             # print(f'{series.name} {max_len} {col}')
 

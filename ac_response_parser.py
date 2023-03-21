@@ -7,13 +7,15 @@ import utils
 from flight_filter import filter_price
 from flight_sorter import sort_segs
 
-
+def ac_response_parse(response: requests.Response, 
+                      seg_sorter: dict = None,
+                      price_filter: dict = {}) -> list:
+    return convert_nested_jsons_to_flatted_jsons(convert_response_to_nested_jsons(response), seg_sorter, price_filter)
 
 def convert_response_to_nested_jsons(response: requests.Response) -> List: # list of JSON/dict
     """
-    Convert response from ac_searcher request.
-    param response: Response of ac_searcher request.
-    :return: List of nested json. Each json means an itinerary.
+    Convert response from ac_searcher POST request. 
+    Return: List of nested json. Each json means an itinerary with one fare.
     """
     if response.status_code != 200:
         return list()
@@ -21,14 +23,14 @@ def convert_response_to_nested_jsons(response: requests.Response) -> List: # lis
         json_data = response.json() # return python dict {data: , dictionaries: }
         air_bounds_group_list = json_data.get('data', {}).get('airBoundGroups', []) if json_data is not None else []
         flights_info_dict = json_data.get('dictionaries', {}).get('flight', {}) if json_data is not None else {}
-
+        
         results = []
 
         fare_class_dict = {
             'STANDARD': 'Std', # cabin: eco, bookingClass: K X
             'FLEX': 'Flex', # cabin: eco, bookingClass: K X
             'LATITUDE': 'Lat', # cabin: eco, bookingClass: K X
-                             # 目前发现所有超经舱位均为AC自己的动态，且子舱位会使用O舱，与星盟伙伴头等奖励客票F舱子舱位O有冲突，暂时去除所有PY结果。
+
             'PYLOW': 'PY Low', # cabin: ecoPremium, bookingClass: A
             'PYFLEX': 'PY Flex', # cabin: ecoPremium, bookingClass: A
 
@@ -41,43 +43,18 @@ def convert_response_to_nested_jsons(response: requests.Response) -> List: # lis
         partner_saver_class_list = ['X', 'I', 'O']
 
         for bound_group in air_bounds_group_list:
-            bound_group = dict(bound_group)
+            bound_group = dict(bound_group) # one itinerary with all fares
 
             segs_raw = [seg_json for seg_json in bound_group['boundDetails']['segments']] # example - [{'flightId': 'SEG-AC933-CUNYVR-2023-06-10-1710'}, 'connectionTime':]
             air_bounds_raw = [bound_json for bound_json in bound_group['airBounds']] # different fares on same route
-
-            """
-            prices = []
-            for air_bound in air_bounds_raw:
-                #  keep price with conditions below:
-                #  fareFamilyCode in cabin_class_dict.keys means the lowest fare of each physical class
-                #  then keep all flights without AC code,
-                #  or with AC code which booking class is XIO.
-
-                if air_bound['fareFamilyCode'] in cabin_class_dict.keys():
-                    if all(['AC' not in str(x['flightId']).split('-')[1] or
-                            (x['bookingClass'] in saver_class_list and 'AC' in str(x['flightId']).split('-')[1])
-                            for x in air_bound['availabilityDetails']]):
-                        temp = {
-                            'cabin_class': cabin_class_dict[air_bound['fareFamilyCode']],
-                            'quota': min([x['quota'] for x in air_bound['availabilityDetails']]),
-                            'miles': air_bound['airOffer']['milesConversion']['convertedMiles']['base'],
-                            'cash': air_bound['airOffer']['milesConversion']['convertedMiles']['totalTaxes'],
-                            'is_mix': air_bound.get('isMixedCabin', False),
-                            'mix_detail': utils.convert_mix(air_bound['availabilityDetails']) if air_bound.get('isMixedCabin', False) else ""
-                        }
-                        prices.append(temp)
-                else:
-                    continue
-            """
-
-            segs = []
+            
+            segs = [] # list of every segment flight info of each itinerary
 
             for seg in segs_raw:
                 flight_info = flights_info_dict[seg['flightId']]
                 temp = {
                     'connection_time': seg.get('connectionTime', 0),
-                    'flight_number': f"{flight_info['marketingAirlineCode']}" + f"{flight_info['marketingFlightNumber']:>4}",
+                    'flight_number': flight_info['marketingAirlineCode'] + f"{flight_info['marketingFlightNumber']:>6}",
                     'aircraft': flight_info['aircraftCode'],
                     'departure_location': flight_info['departure']['locationCode'],
                     'departure_time': flight_info['departure']['dateTime'],
@@ -89,9 +66,11 @@ def convert_response_to_nested_jsons(response: requests.Response) -> List: # lis
                 }
                 segs.append(temp)
 
-            for air_bound in air_bounds_raw:
-                prices = []
+            stop_count = len(segs_raw) - 1
+            duration = bound_group['boundDetails']['duration']
 
+            prices = []
+            for air_bound in air_bounds_raw:
                 temp = {
                     'fare_class': fare_class_dict[air_bound['fareFamilyCode']],
                     'cabin_class': [cabin_class_dict[x['cabin']] for x in air_bound['availabilityDetails']],
@@ -102,25 +81,23 @@ def convert_response_to_nested_jsons(response: requests.Response) -> List: # lis
                     'is_mix': air_bound.get('isMixedCabin', False),
                     'mix_detail': utils.convert_mix(air_bound['availabilityDetails']) if air_bound.get('isMixedCabin', False) else ""
                 }
-
                 prices.append(temp)
 
-                v = {
-                    'segments': segs,
-                    'stops': len(segs_raw) - 1,
-                    'duration': bound_group['boundDetails']['duration'],
-                    'prices': prices
-                }
+            v = {
+                'segments': segs,
+                'stops': stop_count,
+                'duration': duration,
+                'prices': prices
+            }
 
-                results.append(v)
-
+            results.append(v)
         return results
 
 
 def convert_nested_jsons_to_flatted_jsons(origin_results: list,
                                           seg_sorter: dict = None,
                                           price_filter: dict = {}) -> list:
-    # print(origin_results)
+
     sorted_results = sort_segs(origin_results, seg_sorter)
     # sorted_results = origin_results
 
@@ -128,7 +105,7 @@ def convert_nested_jsons_to_flatted_jsons(origin_results: list,
 
     for result in sorted_results:
         segs = result['segments']
-        segs_single = {
+        itinerary_single = {
             'Flight Time': '\n'.join(utils.convert_datetime(x['departure_time'], with_date = True) + 
                                      '-' + utils.convert_datetime(x['arrival_time'], with_date = False) +
                                      ((' +' + str(x['arrival_days_diff'] - x['departure_days_diff']))
@@ -150,14 +127,11 @@ def convert_nested_jsons_to_flatted_jsons(origin_results: list,
         prices = result['prices']
         prices_filtered = filter_price(prices, price_filter)
 
+        """If there is no filtered price, ignore current"""
         if len(prices_filtered) == 0:
             continue
         for pf in prices_filtered:
-            # v1 = {
-            #     'Stops': str(result['stops']) if result['stops'] != 0 else '',
-            #     'Duration': utils.convert_duration(result['duration']),
-            # }
-            prices_single = {
+            price_single = {
                 'Cabin': '\n'.join(x for x in pf['cabin_class']),
                 'Quota': '\n'.join([str(x) if x < 9 else '9+' for x in pf['quotas']]),
                 'Fare Class': pf['fare_class'],
@@ -167,7 +141,7 @@ def convert_nested_jsons_to_flatted_jsons(origin_results: list,
                 'Mixed': 'Yes' if pf['is_mix'] == True else '',
                 'Mix Detail': pf['mix_detail'],
             }
-            flatted_results.append({**segs_single, **prices_single})
+            flatted_results.append({**itinerary_single, **price_single})
 
     return flatted_results
 
