@@ -42,4 +42,4 @@ pip install -r requirements.txt
 ```
 3.Run main.py and you will see the output file.
 
-https://www.https://www.buymeacoffee.com/hashmonkey
+<a href="https://www.buymeacoffee.com/hashmonkey"><img src="https://img.buymeacoffee.com/button-api/?text=Buy me a beer&emoji=🍺&slug=hashmonkey&button_colour=5F7FFF&font_colour=ffffff&font_family=Bree&outline_colour=000000&coffee_colour=FFDD00" /></a>
