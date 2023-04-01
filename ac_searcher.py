@@ -6,7 +6,37 @@ from aws_requests_auth.aws_auth import AWSRequestsAuth
 
 class Searcher():
     def __init__(self):
+        self.get_identity_id()
         self.get_aws_config()
+
+    def get_identity_id(self):
+        headers = {
+            "authority": "cognito-identity.us-east-2.amazonaws.com",
+            "accept": "*/*",
+            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,zh-TW;q=0.5,ja;q=0.4",
+            "amz-sdk-invocation-id": "e611edc8-604a-47ed-a3d0-2d4e4fe8e3af", # Is this ok to have hardcoded invocation id?
+            "amz-sdk-request": "attempt=1; max=3",
+            "cache-control": "no-cache",
+            "content-type": "application/x-amz-json-1.1",
+            "dnt": "1",
+            "origin": "https://www.aircanada.com",
+            "pragma": "no-cache",
+            "referer": "https://www.aircanada.com/",
+            "sec-ch-ua": "\"Chromium\";v=\"110\", \"Not A(Brand\";v=\"24\", \"Microsoft Edge\";v=\"110\"",
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": "\"macOS\"",
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36 Edg/110.0.1587.41",
+            "x-amz-target": "AWSCognitoIdentityService.GetId",
+            "x-amz-user-agent": "aws-sdk-js/3.6.1 os/macOS/10.15.7 lang/js md/browser/Microsoft_Edge_110.0.1587.41 api/cognito_identity/3.6.1 aws-amplify/3.8.23_js"
+        }
+        url = "https://cognito-identity.us-east-2.amazonaws.com/"
+        data = {"IdentityPoolId":"us-east-2:4a7f6b48-a8ab-499b-9e7f-31e79b54638e"}
+        response = requests.post(url, headers=headers, json=data)
+        response_json = response.json()
+        self.identity_id = response_json["IdentityId"]
 
     def get_aws_config(self):
         headers = {
@@ -15,7 +45,7 @@ class Searcher():
             "accept": "*/*",
             "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,zh-TW;q=0.5,ja;q=0.4",
             # "amz-sdk-invocation-id": "67b81d93-3731-40a2-86ca-7b7af5160447",
-            "amz-sdk-invocation-id": "e611edc8-604a-47ed-a3d0-2d4e4fe8e3af",
+            "amz-sdk-invocation-id": "e611edc8-604a-47ed-a3d0-2d4e4fe8e3af", # Is this ok to have hardcoded invocation id?
             "amz-sdk-request": "attempt=1; max=3",
             "cache-control": "no-cache",
             "content-type": "application/x-amz-json-1.1",
@@ -35,14 +65,23 @@ class Searcher():
         }
         url = "https://cognito-identity.us-east-2.amazonaws.com/"
         data = {
-            "IdentityId": "us-east-2:6d8b1368-8473-471f-abf1-a236acac70e2"
+            # "IdentityId": "us-east-2:6d8b1368-8473-471f-abf1-a236acac70e2"
+            "IdentityId": self.identity_id
         }
-        #"IdentityId": "us-east-2:7f9c31d7-d242-4f7e-afda-916b8c6c2b9c"
+        # "IdentityId": "us-east-2:7f9c31d7-d242-4f7e-afda-916b8c6c2b9c"
         response = requests.post(url, headers=headers, json=data)
         r1 = response.json()
         self.access_key_id = r1['Credentials']['AccessKeyId']
         self.secret_key = r1['Credentials']['SecretKey']
         self.session_token = r1['Credentials']['SessionToken']
+
+    def get_auth(self):
+        return AWSRequestsAuth(aws_access_key=self.access_key_id,
+                               aws_secret_access_key=self.secret_key,
+                               aws_host='api-gw.dbaas.aircanada.com',
+                               aws_region='us-east-2',
+                               aws_service='execute-api',
+                               aws_token=self.session_token)
 
     def get_market_token(self, ori: str, des: str, date: str):
         headers = {
@@ -50,7 +89,7 @@ class Searcher():
             "accept": "*/*",
             "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,zh-TW;q=0.5,ja;q=0.4",
             #"ama-client-ref": "92a6f456-b299-43ab-a9fb-7e3d865f0198",
-            "ama-client-ref": "27e5aa13-71a3-4a20-99df-325963f2713e",
+            "ama-client-ref": "27e5aa13-71a3-4a20-99df-325963f2713e", # Is this ok to have hardcoded client reference?
             # "authorization": "AWS4-HMAC-SHA256 Credential=/20230211/us-east-2/execute-api/aws4_request, SignedHeaders=host;x-amz-date;x-amz-security-token, Signature=2709f3e61806c689840c68b3e1b4770f03eac1fa816998561f599d1b27909e3d",
             # "authorization": "AWS4-HMAC-SHA256 Credential=/20230314/us-east-2/execute-api/aws4_request, SignedHeaders=host;x-amz-date;x-amz-security-token, Signature=755d1657795486f098fc76cce7801fafbafc0983efc883ce68ae7bac1ae03faa",
             "cache-control": "no-cache",
@@ -86,21 +125,13 @@ class Searcher():
         r1 = response.json()
         self.ama_session_token = r1['data']['sessionToken']
 
-    def get_auth(self):
-        return AWSRequestsAuth(aws_access_key=self.access_key_id,
-                               aws_secret_access_key=self.secret_key,
-                               aws_host='api-gw.dbaas.aircanada.com',
-                               aws_region='us-east-2',
-                               aws_service='execute-api',
-                               aws_token=self.session_token)
-
     def get_air_bounds(self, ori: str, des: str, date: str, ac_searcher_cabin_class: list) -> requests.Response:
         headers = {
             "authority": "akamai-gw.dbaas.aircanada.com",
             "accept": "*/*",
             "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6,zh-TW;q=0.5,ja;q=0.4",
             # "ama-client-ref": "d662a606-ad1a-4254-994c-13019c734d25",
-            "ama-client-ref": "27e5aa13-71a3-4a20-99df-325963f2713e",
+            "ama-client-ref": "27e5aa13-71a3-4a20-99df-325963f2713e", # Is this ok to have hardcoded reference id?
             "ama-session-token": self.ama_session_token,
             # "authorization": "AWS4-HMAC-SHA256 Credential=ASIAWBHE22QVOHXZQH7O/20230211/us-east-2/execute-api/aws4_request, SignedHeaders=host;x-amz-date;x-amz-security-token, Signature=337881519b12f5742a1361974ec66f06d5ce7b0abb8f0d1919a70bdd7f34dd8c",
             "cache-control": "no-cache",
